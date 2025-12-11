@@ -7,6 +7,19 @@ from dateutil import parser as date_parser
 import os
 import uuid
 
+try:
+    from airtable_service import (
+        fetch_scooters_from_airtable,
+        sync_scooter_to_airtable,
+        sync_all_scooters_to_airtable,
+        delete_scooter_from_airtable,
+        import_scooters_from_airtable
+    )
+    AIRTABLE_AVAILABLE = True
+except Exception as e:
+    AIRTABLE_AVAILABLE = False
+    print(f"Airtable service not available: {e}")
+
 app = Flask(__name__, static_folder='../public', static_url_path='/static')
 CORS(app, resources={r"/*": {"origins": "*"}})
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
@@ -522,6 +535,111 @@ def cancelar_manutencao(manutencao_id):
 @app.route('/html')
 def serve_html_frontend():
     return send_from_directory('../public', 'index.html')
+
+@app.route('/api/airtable/status', methods=['GET'])
+def airtable_status():
+    airtable_key = os.environ.get('AIRTABLE_API_KEY')
+    airtable_base = os.environ.get('AIRTABLE_BASE_ID')
+    
+    return jsonify({
+        'available': AIRTABLE_AVAILABLE,
+        'configured': bool(airtable_key and airtable_base)
+    }), 200
+
+@app.route('/api/airtable/sync', methods=['POST'])
+def sync_to_airtable():
+    if not AIRTABLE_AVAILABLE:
+        return jsonify({"message": "Airtable service not available"}), 503
+    
+    db = get_db()
+    try:
+        scooters = db.query(Scooter).all()
+        scooter_list = [s.to_dict() for s in scooters]
+        
+        results = sync_all_scooters_to_airtable(scooter_list)
+        
+        success_count = sum(1 for r in results if r.get('success'))
+        error_count = len(results) - success_count
+        
+        return jsonify({
+            "message": f"Sincronizado {success_count} scooters com sucesso, {error_count} erros",
+            "results": results
+        }), 200
+    except Exception as e:
+        return jsonify({"message": "Erro ao sincronizar com Airtable", "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/api/airtable/import', methods=['POST'])
+def import_from_airtable():
+    if not AIRTABLE_AVAILABLE:
+        return jsonify({"message": "Airtable service not available"}), 503
+    
+    db = get_db()
+    try:
+        airtable_scooters = import_scooters_from_airtable()
+        
+        imported = 0
+        updated = 0
+        
+        for at_scooter in airtable_scooters:
+            local_id = at_scooter.get('id')
+            
+            if local_id:
+                existing = db.query(Scooter).filter(Scooter.id == local_id).first()
+                if existing:
+                    existing.modelo = at_scooter.get('modelo', existing.modelo)
+                    existing.bateria = at_scooter.get('bateria', existing.bateria)
+                    existing.status = at_scooter.get('status', existing.status)
+                    existing.localizacao = at_scooter.get('localizacao', existing.localizacao)
+                    existing.ultima_atualizacao = datetime.utcnow()
+                    updated += 1
+                else:
+                    new_scooter = Scooter(
+                        id=local_id,
+                        modelo=at_scooter.get('modelo'),
+                        bateria=at_scooter.get('bateria', 100),
+                        status=at_scooter.get('status', 'livre'),
+                        localizacao=at_scooter.get('localizacao')
+                    )
+                    db.add(new_scooter)
+                    imported += 1
+            else:
+                new_scooter = Scooter(
+                    id=str(uuid.uuid4()),
+                    modelo=at_scooter.get('modelo'),
+                    bateria=at_scooter.get('bateria', 100),
+                    status=at_scooter.get('status', 'livre'),
+                    localizacao=at_scooter.get('localizacao')
+                )
+                db.add(new_scooter)
+                imported += 1
+        
+        db.commit()
+        
+        broadcast_event('scooters:imported', {"imported": imported, "updated": updated})
+        
+        return jsonify({
+            "message": f"Importados {imported} novos scooters, atualizados {updated}",
+            "imported": imported,
+            "updated": updated
+        }), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"message": "Erro ao importar do Airtable", "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/api/airtable/fetch', methods=['GET'])
+def fetch_from_airtable():
+    if not AIRTABLE_AVAILABLE:
+        return jsonify({"message": "Airtable service not available"}), 503
+    
+    try:
+        scooters = fetch_scooters_from_airtable()
+        return jsonify(scooters), 200
+    except Exception as e:
+        return jsonify({"message": "Erro ao buscar do Airtable", "error": str(e)}), 500
 
 @socketio.on('connect')
 def handle_connect():
