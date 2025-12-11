@@ -11,6 +11,7 @@ dependencies = [
     "gevent-websocket>=0.10.1",
     "gunicorn>=23.0.0",
     "psycopg2-binary>=2.9.11",
+    "pyairtable>=3.3.0",
     "python-dateutil>=2.9.0.post0",
     "python-dotenv>=1.2.1",
     "sqlalchemy>=2.0.45",
