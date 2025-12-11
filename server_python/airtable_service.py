@@ -25,15 +25,12 @@ def fetch_scooters_from_airtable():
     scooters = []
     for record in records:
         fields = record.get('fields', {})
-        status_field = fields.get(FIELD_STATUS, 'livre')
-        if isinstance(status_field, dict):
-            status_field = status_field.get('name', 'livre')
         
         scooters.append({
             'airtable_id': record.get('id'),
             'modelo': fields.get(FIELD_MODELO, ''),
             'bateria': fields.get(FIELD_BATERIA, 100),
-            'status': status_field,
+            'status': fields.get(FIELD_STATUS, 'livre'),
             'localizacao': fields.get(FIELD_LOCALIZACAO, '')
         })
     
@@ -42,11 +39,9 @@ def fetch_scooters_from_airtable():
 def sync_scooter_to_airtable(scooter_data):
     table = get_airtable_table()
     
-    status_value = str(scooter_data.get('status', 'livre'))
-    
     fields = {
         FIELD_MODELO: str(scooter_data.get('modelo', '')),
-        FIELD_STATUS: {'name': status_value},
+        FIELD_STATUS: str(scooter_data.get('status', 'livre')),
         FIELD_BATERIA: int(scooter_data.get('bateria', 100)),
         FIELD_LOCALIZACAO: str(scooter_data.get('localizacao', ''))
     }
