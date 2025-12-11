@@ -62,7 +62,11 @@
         <section id="scooters-page" class="page">
             <div class="section-header">
                 <h2>Gerenciamento de Scooters</h2>
-                <button class="btn btn-primary" onclick="openScooterModal()" data-testid="button-add-scooter">Nova Scooter</button>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="syncToAirtable()" data-testid="button-sync-airtable" id="btn-sync-airtable">Sincronizar com Airtable</button>
+                    <button class="btn btn-secondary" onclick="importFromAirtable()" data-testid="button-import-airtable" id="btn-import-airtable">Importar do Airtable</button>
+                    <button class="btn btn-primary" onclick="openScooterModal()" data-testid="button-add-scooter">Nova Scooter</button>
+                </div>
             </div>
             
             <div class="filters">
