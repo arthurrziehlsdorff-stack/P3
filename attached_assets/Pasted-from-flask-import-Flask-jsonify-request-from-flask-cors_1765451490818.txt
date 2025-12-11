@@ -1,0 +1,90 @@
+from flask import Flask, jsonify, request
+from flask_cors import CORS # Necessário para permitir que o Frontend (HTML) acesse o Backend
+import uuid
+import random
+
+app = Flask(__name__)
+# Habilita CORS para permitir comunicação entre o frontend (rodando em porta diferente) e o backend
+CORS(app) 
+
+# Base de Dados em memória (simulando a Tabela Scooters)
+# IDs UUID simulados para consistência com a Questão 2
+scooters_db = {
+    "a1b2c3d4-0000-4000-8000-000000000001": {"modelo": "X1", "status": "livre", "nivel_bateria": 85, "localizacao": "Centro"},
+    "e5f6g7h8-0000-4000-8000-000000000002": {"modelo": "Y2", "status": "em_uso", "nivel_bateria": 90, "localizacao": "Bairro A"},
+    "i9j0k1l2-0000-4000-8000-000000000003": {"modelo": "Z3", "status": "livre", "nivel_bateria": 15, "localizacao": "Parque"},
+    "m3n4o5p6-0000-4000-8000-000000000004": {"modelo": "A5", "status": "livre", "nivel_bateria": 55, "localizacao": "Praia"},
+}
+
+# --- Questão 3: Design de API Implementado ---
+
+# 1. Registar uma nova scooter (POST /api/scooters)
+@app.route('/api/scooters', methods=['POST'])
+def registar_scooter():
+    dados = request.get_json()
+    novo_id = str(uuid.uuid4())
+    scooters_db[novo_id] = {
+        "modelo": dados.get('modelo', 'N/A'),
+        "status": dados.get('status', 'livre'),
+        "nivel_bateria": dados.get('nivel_bateria', random.randint(30, 100)),
+        "localizacao": dados.get('localizacao', 'Desconhecida')
+    }
+    return jsonify({"mensagem": "Scooter registrada", "id": novo_id}), 201
+
+# 2. Atualizar o nível de bateria (PATCH /api/scooters/<id>/bateria)
+@app.route('/api/scooters/<string:scooter_id>/bateria', methods=['PATCH'])
+def atualizar_bateria(scooter_id):
+    if scooter_id not in scooters_db:
+        return jsonify({"erro": "Scooter não encontrada."}), 404
+        
+    dados = request.get_json()
+    novo_nivel = dados.get('nivel_bateria')
+
+    if novo_nivel is None or not isinstance(novo_nivel, int) or not (0 <= novo_nivel <= 100):
+         return jsonify({"erro": "Nível de bateria inválido."}), 400
+
+    scooters_db[scooter_id]['nivel_bateria'] = novo_nivel
+    return jsonify({"mensagem": "Nível de bateria atualizado", "nivel_atual": novo_nivel}), 200
+
+# 3. Listar apenas as scooters disponíveis (GET /api/scooters/disponiveis)
+@app.route('/api/scooters/disponiveis', methods=['GET'])
+def listar_disponiveis():
+    lista_disponivel = []
+    for id, dados in scooters_db.items():
+        if dados['status'] == 'livre':
+            # Inclui o ID para que o frontend possa alugar
+            lista_disponivel.append({**dados, "id": id}) 
+    return jsonify(lista_disponivel), 200
+
+# --- Questão 4: Lógica de Código Implementada (POST /alugar) ---
+
+@app.route('/alugar', methods=['POST'])
+def alugar_scooter():
+    dados = request.get_json()
+    scooter_id = dados.get('scooter_id')
+
+    # 1. A scooter existir no banco de dados.
+    scooter = scooters_db.get(scooter_id)
+    if not scooter:
+        return jsonify({"erro": "Scooter não encontrada."}), 404
+
+    # 2. O status for 'livre'.
+    if scooter['status'] != 'livre':
+        return jsonify({"erro": f"Aluguel negado. Status atual: {scooter['status']} (Dica: {scooter_id})"}), 400
+    
+    # 3. A bateria for maior que 20%.
+    if scooter['nivel_bateria'] < 20:
+        return jsonify({"erro": "Aluguel negado. Bateria abaixo de 20%."}), 400
+
+    # Aluguel bem-sucedido
+    scooter['status'] = 'em_uso'
+    # Aqui, na vida real, você iniciaria o registro na tabela Viagens
+    return jsonify({
+        "mensagem": "Aluguel iniciado com sucesso!",
+        "scooter_id": scooter_id,
+        "novo_status": scooter['status']
+    }), 200
+
+if __name__ == '__main__':
+    # No Replit, você pode precisar definir a porta: app.run(host='0.0.0.0', port=8080)
+    app.run(debug=True)
