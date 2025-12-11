@@ -10,12 +10,14 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import ViagensPage from "@/pages/viagens";
+import ManutencaoPage from "@/pages/manutencao";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/viagens" component={ViagensPage} />
+      <Route path="/manutencao" component={ManutencaoPage} />
       <Route component={NotFound} />
     </Switch>
   );

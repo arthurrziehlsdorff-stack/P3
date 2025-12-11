@@ -11,7 +11,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Bike, MapPin, Settings } from "lucide-react";
+import { LayoutDashboard, Bike, MapPin, Wrench } from "lucide-react";
 
 const menuItems = [
   {
@@ -23,6 +23,11 @@ const menuItems = [
     title: "Viagens",
     url: "/viagens",
     icon: MapPin,
+  },
+  {
+    title: "Manutencao",
+    url: "/manutencao",
+    icon: Wrench,
   },
 ];
 
