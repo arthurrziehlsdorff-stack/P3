@@ -5,6 +5,11 @@ AIRTABLE_API_KEY = os.environ.get('AIRTABLE_API_KEY')
 AIRTABLE_BASE_ID = os.environ.get('AIRTABLE_BASE_ID')
 TABLE_ID = os.environ.get('AIRTABLE_TABLE_ID', 'tblpKvuMzRSp2mrYZ')
 
+FIELD_MODELO = 'Modelo'
+FIELD_STATUS = 'Status'
+FIELD_BATERIA = 'Nível Bateria'
+FIELD_LOCALIZACAO = 'Localização'
+
 def get_airtable_table():
     if not AIRTABLE_API_KEY or not AIRTABLE_BASE_ID:
         raise Exception("Airtable credentials not configured")
@@ -20,13 +25,16 @@ def fetch_scooters_from_airtable():
     scooters = []
     for record in records:
         fields = record.get('fields', {})
+        status_field = fields.get(FIELD_STATUS, 'livre')
+        if isinstance(status_field, dict):
+            status_field = status_field.get('name', 'livre')
+        
         scooters.append({
             'airtable_id': record.get('id'),
-            'modelo': fields.get('Modelo', ''),
-            'bateria': fields.get('Bateria', 100),
-            'status': fields.get('Status', 'livre'),
-            'localizacao': fields.get('Localizacao', ''),
-            'id': fields.get('ID', None)
+            'modelo': fields.get(FIELD_MODELO, ''),
+            'bateria': fields.get(FIELD_BATERIA, 100),
+            'status': status_field,
+            'localizacao': fields.get(FIELD_LOCALIZACAO, '')
         })
     
     return scooters
@@ -34,11 +42,13 @@ def fetch_scooters_from_airtable():
 def sync_scooter_to_airtable(scooter_data):
     table = get_airtable_table()
     
+    status_value = str(scooter_data.get('status', 'livre'))
+    
     fields = {
-        'Modelo': str(scooter_data.get('modelo', '')),
-        'Bateria': int(scooter_data.get('bateria', 100)),
-        'Status': str(scooter_data.get('status', 'livre')),
-        'Localizacao': str(scooter_data.get('localizacao', ''))
+        FIELD_MODELO: str(scooter_data.get('modelo', '')),
+        FIELD_STATUS: {'name': status_value},
+        FIELD_BATERIA: int(scooter_data.get('bateria', 100)),
+        FIELD_LOCALIZACAO: str(scooter_data.get('localizacao', ''))
     }
     
     return table.create(fields)
