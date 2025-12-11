@@ -40,3 +40,8 @@ args = "cd server_python && python app.py"
 
 [agent]
 integrations = ["javascript_database:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+AIRTABLE_BASE_ID = "app6jBpIhiaS0mI1y"
