@@ -660,9 +660,24 @@ def get_airtable_schema():
         return jsonify({"message": "Airtable service not available"}), 503
     
     try:
-        from airtable_service import get_table_schema
-        fields = get_table_schema()
-        return jsonify({"fields": fields}), 200
+        from pyairtable import Api
+        api = Api(os.environ.get('AIRTABLE_API_KEY'))
+        base = api.base(os.environ.get('AIRTABLE_BASE_ID'))
+        table_id = os.environ.get('AIRTABLE_TABLE_ID', 'tblpKvuMzRSp2mrYZ')
+        
+        base_schema = base.schema()
+        
+        table_info = None
+        for t in base_schema.tables:
+            if t.id == table_id or t.name == table_id:
+                table_info = t
+                break
+        
+        if table_info:
+            fields = [{"id": f.id, "name": f.name, "type": f.type} for f in table_info.fields]
+            return jsonify({"table": table_info.name, "fields": fields}), 200
+        else:
+            return jsonify({"message": "Table not found", "tables": [t.name for t in base_schema.tables]}), 404
     except Exception as e:
         return jsonify({"message": "Erro ao buscar schema", "error": str(e)}), 500
 
