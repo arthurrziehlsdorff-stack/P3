@@ -8,7 +8,7 @@ import os
 import uuid
 
 app = Flask(__name__, static_folder='../public', static_url_path='/static')
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -417,17 +417,13 @@ def delete_manutencao(manutencao_id):
     finally:
         db.close()
 
+@app.route('/')
+def serve_index():
+    return send_from_directory('../public', 'index.html')
+
 @app.route('/html')
 def serve_html_frontend():
     return send_from_directory('../public', 'index.html')
-
-@app.route('/style.css')
-def serve_css():
-    return send_from_directory('../public', 'style.css')
-
-@app.route('/script.js')
-def serve_js():
-    return send_from_directory('../public', 'script.js')
 
 @socketio.on('connect')
 def handle_connect():
