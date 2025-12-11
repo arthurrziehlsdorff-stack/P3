@@ -656,4 +656,86 @@ async function cancelMaintenance(maintenanceId) {
     }
 }
 
+async function checkAirtableStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/api/airtable/status`);
+        const status = await response.json();
+        
+        const syncBtn = document.getElementById('btn-sync-airtable');
+        const importBtn = document.getElementById('btn-import-airtable');
+        
+        if (syncBtn && importBtn) {
+            if (!status.available || !status.configured) {
+                syncBtn.disabled = true;
+                importBtn.disabled = true;
+                syncBtn.title = 'Airtable nao configurado';
+                importBtn.title = 'Airtable nao configurado';
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao verificar status do Airtable:', error);
+    }
+}
+
+async function syncToAirtable() {
+    const btn = document.getElementById('btn-sync-airtable');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Sincronizando...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/airtable/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert(result.message);
+        } else {
+            alert(result.message || 'Erro ao sincronizar com Airtable');
+        }
+    } catch (error) {
+        console.error('Erro ao sincronizar com Airtable:', error);
+        alert('Erro ao sincronizar com Airtable');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+async function importFromAirtable() {
+    const btn = document.getElementById('btn-import-airtable');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Importando...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/airtable/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert(result.message);
+            await loadAllData();
+        } else {
+            alert(result.message || 'Erro ao importar do Airtable');
+        }
+    } catch (error) {
+        console.error('Erro ao importar do Airtable:', error);
+        alert('Erro ao importar do Airtable');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkAirtableStatus();
+});
+
 setInterval(loadAllData, 30000);

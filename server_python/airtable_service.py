@@ -4,14 +4,14 @@ import os
 AIRTABLE_API_KEY = os.environ.get('AIRTABLE_API_KEY')
 AIRTABLE_BASE_ID = os.environ.get('AIRTABLE_BASE_ID')
 
-TABLE_NAME = 'Scooters'
+TABLE_ID = os.environ.get('AIRTABLE_TABLE_ID', 'tblStl467KHAo13nR')
 
 def get_airtable_table():
     if not AIRTABLE_API_KEY or not AIRTABLE_BASE_ID:
         raise Exception("Airtable credentials not configured")
     
     api = Api(AIRTABLE_API_KEY)
-    table = api.table(AIRTABLE_BASE_ID, TABLE_NAME)
+    table = api.table(AIRTABLE_BASE_ID, TABLE_ID)
     return table
 
 def fetch_scooters_from_airtable():
@@ -36,20 +36,13 @@ def sync_scooter_to_airtable(scooter_data):
     table = get_airtable_table()
     
     fields = {
-        'ID': scooter_data.get('id'),
-        'Modelo': scooter_data.get('modelo'),
-        'Bateria': scooter_data.get('bateria'),
-        'Status': scooter_data.get('status'),
-        'Localizacao': scooter_data.get('localizacao')
+        'Modelo': scooter_data.get('modelo', ''),
+        'Bateria': scooter_data.get('bateria', 100),
+        'Status': scooter_data.get('status', 'livre'),
+        'Localizacao': scooter_data.get('localizacao', '')
     }
     
-    existing = table.all(formula=f"{{ID}}='{scooter_data.get('id')}'")
-    
-    if existing:
-        record_id = existing[0]['id']
-        return table.update(record_id, fields)
-    else:
-        return table.create(fields)
+    return table.create(fields)
 
 def sync_all_scooters_to_airtable(scooters_list):
     results = []
@@ -61,16 +54,25 @@ def sync_all_scooters_to_airtable(scooters_list):
             results.append({'success': False, 'id': scooter.get('id'), 'error': str(e)})
     return results
 
-def delete_scooter_from_airtable(scooter_id):
+def delete_scooter_from_airtable(airtable_id):
     table = get_airtable_table()
     
-    existing = table.all(formula=f"{{ID}}='{scooter_id}'")
-    
-    if existing:
-        record_id = existing[0]['id']
-        table.delete(record_id)
+    if airtable_id:
+        table.delete(airtable_id)
         return True
     return False
 
 def import_scooters_from_airtable():
     return fetch_scooters_from_airtable()
+
+def clear_airtable_and_sync(scooters_list):
+    table = get_airtable_table()
+    
+    existing = table.all()
+    for record in existing:
+        try:
+            table.delete(record['id'])
+        except:
+            pass
+    
+    return sync_all_scooters_to_airtable(scooters_list)
