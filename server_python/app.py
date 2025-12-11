@@ -654,6 +654,18 @@ def fetch_raw_from_airtable():
     except Exception as e:
         return jsonify({"message": "Erro ao buscar do Airtable", "error": str(e)}), 500
 
+@app.route('/api/airtable/schema', methods=['GET'])
+def get_airtable_schema():
+    if not AIRTABLE_AVAILABLE:
+        return jsonify({"message": "Airtable service not available"}), 503
+    
+    try:
+        from airtable_service import get_table_schema
+        fields = get_table_schema()
+        return jsonify({"fields": fields}), 200
+    except Exception as e:
+        return jsonify({"message": "Erro ao buscar schema", "error": str(e)}), 500
+
 @socketio.on('connect')
 def handle_connect():
     print('WebSocket client connected')
