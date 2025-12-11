@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertScooterSchema, updateBateriaSchema, alugarSchema } from "@shared/schema";
+import { insertScooterSchema, updateBateriaSchema, alugarSchema, insertManutencaoSchema } from "@shared/schema";
 import { z } from "zod";
 import { broadcast } from "./websocket";
 import express from "express";
@@ -204,6 +204,178 @@ export async function registerRoutes(
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Erro ao finalizar viagem" });
+    }
+  });
+
+  // === MAINTENANCE ROUTES ===
+
+  // GET all maintenance tasks
+  app.get("/api/manutencoes", async (req, res) => {
+    try {
+      const manutencoes = await storage.getAllManutencoes();
+      res.json(manutencoes);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar manutenções" });
+    }
+  });
+
+  // GET pending maintenance tasks
+  app.get("/api/manutencoes/pendentes", async (req, res) => {
+    try {
+      const manutencoes = await storage.getPendingManutencoes();
+      res.json(manutencoes);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar manutenções pendentes" });
+    }
+  });
+
+  // GET maintenance tasks for a specific scooter
+  app.get("/api/scooters/:id/manutencoes", async (req, res) => {
+    try {
+      const manutencoes = await storage.getManutencoesByScooter(req.params.id);
+      res.json(manutencoes);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar manutenções da scooter" });
+    }
+  });
+
+  // GET single maintenance task
+  app.get("/api/manutencoes/:id", async (req, res) => {
+    try {
+      const manutencao = await storage.getManutencaoById(req.params.id);
+      if (!manutencao) {
+        return res.status(404).json({ message: "Manutenção não encontrada" });
+      }
+      res.json(manutencao);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar manutenção" });
+    }
+  });
+
+  // POST create new maintenance task
+  app.post("/api/manutencoes", async (req, res) => {
+    try {
+      const parsed = insertManutencaoSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Dados inválidos", 
+          errors: parsed.error.errors 
+        });
+      }
+
+      // Verify scooter exists
+      const scooter = await storage.getScooterById(parsed.data.scooterId);
+      if (!scooter) {
+        return res.status(400).json({ message: "Scooter não encontrada" });
+      }
+
+      // Update scooter status to maintenance
+      await storage.updateScooter(parsed.data.scooterId, { status: "manutencao" });
+
+      const manutencao = await storage.createManutencao(parsed.data);
+      broadcast("maintenance:created", manutencao);
+      broadcast("scooter:updated", { ...scooter, status: "manutencao" });
+      res.status(201).json(manutencao);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao criar manutenção" });
+    }
+  });
+
+  // PATCH update maintenance task
+  app.patch("/api/manutencoes/:id", async (req, res) => {
+    try {
+      const manutencao = await storage.getManutencaoById(req.params.id);
+      if (!manutencao) {
+        return res.status(404).json({ message: "Manutenção não encontrada" });
+      }
+
+      const parsed = insertManutencaoSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Dados inválidos", 
+          errors: parsed.error.errors 
+        });
+      }
+
+      const updated = await storage.updateManutencao(req.params.id, parsed.data);
+      broadcast("maintenance:updated", updated);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao atualizar manutenção" });
+    }
+  });
+
+  // PATCH start maintenance task
+  app.patch("/api/manutencoes/:id/iniciar", async (req, res) => {
+    try {
+      const manutencao = await storage.getManutencaoById(req.params.id);
+      if (!manutencao) {
+        return res.status(404).json({ message: "Manutenção não encontrada" });
+      }
+
+      if (manutencao.status !== "pendente") {
+        return res.status(400).json({ message: "Manutenção não está pendente" });
+      }
+
+      const updated = await storage.iniciarManutencao(req.params.id);
+      broadcast("maintenance:updated", updated);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao iniciar manutenção" });
+    }
+  });
+
+  // PATCH complete maintenance task
+  app.patch("/api/manutencoes/:id/concluir", async (req, res) => {
+    try {
+      const manutencao = await storage.getManutencaoById(req.params.id);
+      if (!manutencao) {
+        return res.status(404).json({ message: "Manutenção não encontrada" });
+      }
+
+      if (manutencao.status !== "em_andamento" && manutencao.status !== "pendente") {
+        return res.status(400).json({ message: "Manutenção não pode ser concluída" });
+      }
+
+      const observacoes = req.body.observacoes || null;
+      const updated = await storage.concluirManutencao(req.params.id, observacoes);
+
+      // Update scooter status back to livre
+      const scooter = await storage.updateScooter(manutencao.scooterId, { status: "livre" });
+      
+      broadcast("maintenance:completed", updated);
+      broadcast("scooter:updated", scooter);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao concluir manutenção" });
+    }
+  });
+
+  // PATCH cancel maintenance task
+  app.patch("/api/manutencoes/:id/cancelar", async (req, res) => {
+    try {
+      const manutencao = await storage.getManutencaoById(req.params.id);
+      if (!manutencao) {
+        return res.status(404).json({ message: "Manutenção não encontrada" });
+      }
+
+      if (manutencao.status === "concluida") {
+        return res.status(400).json({ message: "Manutenção já foi concluída" });
+      }
+
+      const updated = await storage.cancelarManutencao(req.params.id);
+
+      // Update scooter status back to livre if it was in maintenance
+      const scooter = await storage.getScooterById(manutencao.scooterId);
+      if (scooter && scooter.status === "manutencao") {
+        const updatedScooter = await storage.updateScooter(manutencao.scooterId, { status: "livre" });
+        broadcast("scooter:updated", updatedScooter);
+      }
+      
+      broadcast("maintenance:cancelled", updated);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao cancelar manutenção" });
     }
   });
 

@@ -5,12 +5,15 @@ import {
   type InsertScooter,
   type Viagem,
   type InsertViagem,
+  type Manutencao,
+  type InsertManutencao,
   users,
   scooters,
   viagens,
+  manutencoes,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, isNull, and } from "drizzle-orm";
+import { eq, isNull, and, or, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -29,6 +32,16 @@ export interface IStorage {
   getActiveViagens(): Promise<Viagem[]>;
   createViagem(viagem: InsertViagem): Promise<Viagem>;
   finalizarViagem(id: string, distanciaKm: string): Promise<Viagem | undefined>;
+  
+  getAllManutencoes(): Promise<Manutencao[]>;
+  getManutencaoById(id: string): Promise<Manutencao | undefined>;
+  getPendingManutencoes(): Promise<Manutencao[]>;
+  getManutencoesByScooter(scooterId: string): Promise<Manutencao[]>;
+  createManutencao(manutencao: InsertManutencao): Promise<Manutencao>;
+  updateManutencao(id: string, manutencao: Partial<InsertManutencao>): Promise<Manutencao | undefined>;
+  iniciarManutencao(id: string): Promise<Manutencao | undefined>;
+  concluirManutencao(id: string, observacoes?: string): Promise<Manutencao | undefined>;
+  cancelarManutencao(id: string): Promise<Manutencao | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -106,6 +119,69 @@ export class DatabaseStorage implements IStorage {
       .update(viagens)
       .set({ dataFim: new Date(), distanciaKm })
       .where(eq(viagens.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getAllManutencoes(): Promise<Manutencao[]> {
+    return db.select().from(manutencoes).orderBy(desc(manutencoes.dataAgendada));
+  }
+
+  async getManutencaoById(id: string): Promise<Manutencao | undefined> {
+    const [manutencao] = await db.select().from(manutencoes).where(eq(manutencoes.id, id));
+    return manutencao || undefined;
+  }
+
+  async getPendingManutencoes(): Promise<Manutencao[]> {
+    return db.select().from(manutencoes).where(
+      or(
+        eq(manutencoes.status, "pendente"),
+        eq(manutencoes.status, "em_andamento")
+      )
+    ).orderBy(desc(manutencoes.dataAgendada));
+  }
+
+  async getManutencoesByScooter(scooterId: string): Promise<Manutencao[]> {
+    return db.select().from(manutencoes).where(eq(manutencoes.scooterId, scooterId)).orderBy(desc(manutencoes.dataAgendada));
+  }
+
+  async createManutencao(manutencao: InsertManutencao): Promise<Manutencao> {
+    const [newManutencao] = await db.insert(manutencoes).values(manutencao).returning();
+    return newManutencao;
+  }
+
+  async updateManutencao(id: string, manutencao: Partial<InsertManutencao>): Promise<Manutencao | undefined> {
+    const [updated] = await db
+      .update(manutencoes)
+      .set(manutencao)
+      .where(eq(manutencoes.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async iniciarManutencao(id: string): Promise<Manutencao | undefined> {
+    const [updated] = await db
+      .update(manutencoes)
+      .set({ status: "em_andamento" })
+      .where(eq(manutencoes.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async concluirManutencao(id: string, observacoes?: string): Promise<Manutencao | undefined> {
+    const [updated] = await db
+      .update(manutencoes)
+      .set({ status: "concluida", dataConclusao: new Date(), observacoes })
+      .where(eq(manutencoes.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async cancelarManutencao(id: string): Promise<Manutencao | undefined> {
+    const [updated] = await db
+      .update(manutencoes)
+      .set({ status: "cancelada" })
+      .where(eq(manutencoes.id, id))
       .returning();
     return updated || undefined;
   }

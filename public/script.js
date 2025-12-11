@@ -2,6 +2,7 @@ const API_BASE = '';
 
 let allScooters = [];
 let allViagens = [];
+let allManutencoes = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
@@ -28,7 +29,8 @@ function showPage(pageId) {
 async function loadAllData() {
     await Promise.all([
         loadScooters(),
-        loadViagens()
+        loadViagens(),
+        loadManutencoes()
     ]);
     updateMetrics();
 }
@@ -430,6 +432,227 @@ async function updateBattery(event) {
     } catch (error) {
         console.error('Erro ao atualizar bateria:', error);
         alert('Erro ao atualizar bateria');
+    }
+}
+
+async function loadManutencoes() {
+    try {
+        const response = await fetch(`${API_BASE}/api/manutencoes`);
+        allManutencoes = await response.json();
+        renderManutencaoTable();
+        updateMaintenanceScooterOptions();
+    } catch (error) {
+        console.error('Erro ao carregar manutencoes:', error);
+    }
+}
+
+function renderManutencaoTable() {
+    const tbody = document.getElementById('manutencao-table-body');
+    if (!tbody) return;
+    
+    const statusFilter = document.getElementById('maintenance-status-filter')?.value || '';
+    const priorityFilter = document.getElementById('maintenance-priority-filter')?.value || '';
+    
+    let filtered = allManutencoes;
+    
+    if (statusFilter) {
+        filtered = filtered.filter(m => m.status === statusFilter);
+    }
+    
+    if (priorityFilter) {
+        filtered = filtered.filter(m => m.prioridade === priorityFilter);
+    }
+    
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhuma manutencao encontrada.</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = filtered.map(m => {
+        const scooter = allScooters.find(s => s.id === m.scooterId);
+        const canStart = m.status === 'pendente';
+        const canComplete = m.status === 'pendente' || m.status === 'em_andamento';
+        const canCancel = m.status !== 'concluida' && m.status !== 'cancelada';
+        
+        return `
+            <tr data-testid="row-manutencao-${m.id}">
+                <td class="id-cell">${m.id.slice(0, 8)}...</td>
+                <td>${scooter ? escapeHtml(scooter.modelo) : m.scooterId.slice(0, 8)}</td>
+                <td>${escapeHtml(m.tecnicoNome)}</td>
+                <td>${escapeHtml(m.descricao)}</td>
+                <td><span class="priority-badge ${m.prioridade}">${formatPriority(m.prioridade)}</span></td>
+                <td><span class="status-badge ${m.status}">${formatMaintenanceStatus(m.status)}</span></td>
+                <td>${formatDate(m.dataAgendada)}</td>
+                <td class="actions-cell">
+                    ${canStart ? `<button class="btn btn-secondary btn-sm" onclick="startMaintenance('${m.id}')" data-testid="button-start-${m.id}">Iniciar</button>` : ''}
+                    ${canComplete ? `<button class="btn btn-primary btn-sm" onclick="openCompleteMaintenanceModal('${m.id}')" data-testid="button-complete-${m.id}">Concluir</button>` : ''}
+                    ${canCancel ? `<button class="btn btn-secondary btn-sm" onclick="cancelMaintenance('${m.id}')" data-testid="button-cancel-${m.id}">Cancelar</button>` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterMaintenance() {
+    renderManutencaoTable();
+}
+
+function formatPriority(priority) {
+    const map = {
+        baixa: 'Baixa',
+        media: 'Media',
+        alta: 'Alta',
+        urgente: 'Urgente'
+    };
+    return map[priority] || priority;
+}
+
+function formatMaintenanceStatus(status) {
+    const map = {
+        pendente: 'Pendente',
+        em_andamento: 'Em Andamento',
+        concluida: 'Concluida',
+        cancelada: 'Cancelada'
+    };
+    return map[status] || status;
+}
+
+function updateMaintenanceScooterOptions() {
+    const select = document.getElementById('maintenance-scooter');
+    if (!select) return;
+    
+    select.innerHTML = allScooters.length === 0 
+        ? '<option value="">Nenhuma scooter cadastrada</option>'
+        : allScooters.map(s => `<option value="${s.id}">${s.modelo} - ${s.localizacao}</option>`).join('');
+}
+
+function openMaintenanceModal() {
+    const modal = document.getElementById('maintenance-modal');
+    const form = document.getElementById('maintenance-form');
+    
+    form.reset();
+    document.getElementById('maintenance-id').value = '';
+    document.getElementById('maintenance-modal-title').textContent = 'Nova Manutencao';
+    
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById('maintenance-data').value = now.toISOString().slice(0, 16);
+    
+    updateMaintenanceScooterOptions();
+    modal.classList.add('active');
+}
+
+function closeMaintenanceModal() {
+    document.getElementById('maintenance-modal').classList.remove('active');
+}
+
+async function saveMaintenance(event) {
+    event.preventDefault();
+    
+    const data = {
+        scooterId: document.getElementById('maintenance-scooter').value,
+        tecnicoNome: document.getElementById('maintenance-tecnico').value,
+        descricao: document.getElementById('maintenance-descricao').value,
+        prioridade: document.getElementById('maintenance-prioridade').value,
+        dataAgendada: new Date(document.getElementById('maintenance-data').value).toISOString()
+    };
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/manutencoes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            closeMaintenanceModal();
+            await loadAllData();
+        } else {
+            const error = await response.json();
+            alert(error.message || 'Erro ao agendar manutencao');
+        }
+    } catch (error) {
+        console.error('Erro ao agendar manutencao:', error);
+        alert('Erro ao agendar manutencao');
+    }
+}
+
+async function startMaintenance(maintenanceId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/manutencoes/${maintenanceId}/iniciar`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            await loadAllData();
+        } else {
+            const error = await response.json();
+            alert(error.message || 'Erro ao iniciar manutencao');
+        }
+    } catch (error) {
+        console.error('Erro ao iniciar manutencao:', error);
+        alert('Erro ao iniciar manutencao');
+    }
+}
+
+function openCompleteMaintenanceModal(maintenanceId) {
+    const modal = document.getElementById('complete-maintenance-modal');
+    document.getElementById('complete-maintenance-id').value = maintenanceId;
+    document.getElementById('maintenance-observacoes').value = '';
+    modal.classList.add('active');
+}
+
+function closeCompleteMaintenanceModal() {
+    document.getElementById('complete-maintenance-modal').classList.remove('active');
+}
+
+async function completeMaintenance(event) {
+    event.preventDefault();
+    
+    const maintenanceId = document.getElementById('complete-maintenance-id').value;
+    const observacoes = document.getElementById('maintenance-observacoes').value;
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/manutencoes/${maintenanceId}/concluir`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ observacoes })
+        });
+        
+        if (response.ok) {
+            closeCompleteMaintenanceModal();
+            await loadAllData();
+        } else {
+            const error = await response.json();
+            alert(error.message || 'Erro ao concluir manutencao');
+        }
+    } catch (error) {
+        console.error('Erro ao concluir manutencao:', error);
+        alert('Erro ao concluir manutencao');
+    }
+}
+
+async function cancelMaintenance(maintenanceId) {
+    if (!confirm('Tem certeza que deseja cancelar esta manutencao?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/manutencoes/${maintenanceId}/cancelar`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            await loadAllData();
+        } else {
+            const error = await response.json();
+            alert(error.message || 'Erro ao cancelar manutencao');
+        }
+    } catch (error) {
+        console.error('Erro ao cancelar manutencao:', error);
+        alert('Erro ao cancelar manutencao');
     }
 }
 
