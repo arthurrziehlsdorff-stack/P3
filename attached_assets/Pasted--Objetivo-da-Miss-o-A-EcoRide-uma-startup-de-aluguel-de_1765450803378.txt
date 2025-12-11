@@ -1,0 +1,73 @@
+🎯 Objetivo da Missão
+
+A EcoRide é uma startup de aluguel de scooters elétricas partilhadas. A empresa está migrando de um sistema manual para uma plataforma Web completa. O sistema precisa de gerir a frota de scooters, os utilizadores e o registo das viagens em tempo real.
+
+Você é o Full Stack Developer responsável por entregar o módulo central da operação: o "Painel de Controle da Frota". usando apenas HTML, CSS e JavaScript (frontend) e Python ou Java (backend)
+
+
+
+📌 Requisitos da Avaliação
+
+A avaliação será dividida em 4 partes, cobrindo os pilares abordados no bimestre:
+
+
+
+Bloco 1: Arquitetura e Dados (Modelagem e Agile)
+
+Desafio: Antes de programar, é preciso estruturar os dados para que o sistema seja escalável.
+
+Questão 1 (Agile): Escreva uma História de Usuário para um técnico de manutenção que precisa encontrar scooters com bateria baixa. Defina também o Critério de Aceitação.
+
+Questão 2 (Banco de Dados): Implemente as tabelas de banco de dados que representam as entidades Scooters e Viagem.
+
+Requisito: Uma Scooter pode ter muitas Viagens, mas uma Viagem pertence a apenas uma Scooter.
+
+
+
+Bloco 2: Backend e Regras de Negócio (API & Lógica)
+
+Desafio: O sistema precisa garantir que scooters avariadas ou sem bateria não sejam alugadas.
+
+Questão 3 (Design de API): Defina as seguintes ações para uso via API:
+
+Registar uma nova scooters.
+
+Atualizar o nível de bateria de uma scooters específica.
+
+Listar apenas as scooters disponíveis (status = 'livre').
+
+Questão 4 (Lógica de Código): Implemente o endpoint POST /alugar.
+
+Regra de Ouro: O aluguel só pode ser criado se:
+
+A scooter existir no banco de dados.
+
+O status for 'livre'.
+
+A bateria for maior que 20%.
+
+Caso contrário, retornar status 400 com a mensagem de erro apropriada.
+
+
+
+Bloco 3: Frontend e Integração (Consumo de API & Estado)
+
+Desafio: O gestor da frota precisa de ver a lista de scooters num dashboard web.
+
+Questão 5 (Ciclo de Vida): No frontend, implemente um componente ListaDeScooters. Explique passo-a-passo o que acontece desde que o utilizador abre a página até os dados aparecerem:
+
+O componente é montado.
+
+Qual função é chamada?
+
+O que a requisição assíncrona faz?
+
+O que acontece com o State (estado) quando os dados chegam do backend?
+
+
+
+Bloco 4: Deploy e Segurança (Conceitos Finais)
+
+Desafio: O sistema vai para o ar (produção) hoje à noite.
+
+Questão 6 (Variáveis de Ambiente): No código local, a conexão com o banco de dados usa a senha root:1234. Por que é uma falha grave de segurança subir isso para o GitHub? O que deves usar no lugar da senha fixa (Hardcoded) ao fazer o deploy na nuvem?
