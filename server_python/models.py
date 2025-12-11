@@ -1,24 +1,10 @@
-from sqlalchemy import create_engine, Column, String, Integer, Text, TIMESTAMP, DECIMAL, ForeignKey, Enum
+from sqlalchemy import Column, String, Integer, Text, TIMESTAMP, DECIMAL, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-import os
 import uuid
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
-engine = create_engine(DATABASE_URL) if DATABASE_URL else None
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
 Base = declarative_base()
-
-def get_db():
-    if SessionLocal is None:
-        raise Exception("Database not configured")
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 class Scooter(Base):
     __tablename__ = "scooters"
@@ -63,7 +49,3 @@ class Viagem(Base):
             "dataFim": self.data_fim.isoformat() if self.data_fim else None,
             "distanciaKm": str(self.distancia_km) if self.distancia_km else None
         }
-
-def init_db():
-    if engine:
-        Base.metadata.create_all(bind=engine)
