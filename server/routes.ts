@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertScooterSchema, updateBateriaSchema, alugarSchema } from "@shared/schema";
 import { z } from "zod";
+import { broadcast } from "./websocket";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -53,6 +54,7 @@ export async function registerRoutes(
         });
       }
       const scooter = await storage.createScooter(parsed.data);
+      broadcast("scooter:created", scooter);
       res.status(201).json(scooter);
     } catch (error) {
       res.status(500).json({ message: "Erro ao criar scooter" });
@@ -76,6 +78,7 @@ export async function registerRoutes(
       }
       
       const updated = await storage.updateScooter(req.params.id, parsed.data);
+      broadcast("scooter:updated", updated);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Erro ao atualizar scooter" });
@@ -99,6 +102,7 @@ export async function registerRoutes(
       }
       
       const updated = await storage.updateScooterBattery(req.params.id, parsed.data.bateria);
+      broadcast("scooter:updated", updated);
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Erro ao atualizar bateria" });
@@ -143,7 +147,10 @@ export async function registerRoutes(
       });
 
       // Update scooter status to 'ocupado'
-      await storage.updateScooter(scooterId, { status: "ocupado" });
+      const updatedScooter = await storage.updateScooter(scooterId, { status: "ocupado" });
+      
+      broadcast("trip:created", viagem);
+      broadcast("scooter:updated", updatedScooter);
 
       res.status(201).json(viagem);
     } catch (error) {
@@ -187,7 +194,10 @@ export async function registerRoutes(
       const updated = await storage.finalizarViagem(req.params.id, distanciaKm);
 
       // Update scooter status back to 'livre'
-      await storage.updateScooter(viagem.scooterId, { status: "livre" });
+      const updatedScooter = await storage.updateScooter(viagem.scooterId, { status: "livre" });
+      
+      broadcast("trip:finalized", updated);
+      broadcast("scooter:updated", updatedScooter);
 
       res.json(updated);
     } catch (error) {

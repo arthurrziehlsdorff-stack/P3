@@ -1,0 +1,115 @@
+// A URL do seu backend Flask. No Replit, geralmente é a mesma URL que o frontend.
+// Se você estiver executando o Flask localmente (ex: porta 5000), use: const API_URL = 'http://localhost:5000';
+// No ambiente Replit, o padrão é usar a URL da própria aplicação:
+const API_BASE_URL = window.location.origin;
+
+const listaScootersDiv = document.getElementById('lista-scooters');
+const loadingMessage = document.getElementById('loading-message');
+
+/**
+ * Função responsável por buscar os dados da API (Questão 5 - Requisição Assíncrona).
+ */
+async function carregarScooters() {
+    // 1. O componente é montado / A função é chamada
+    loadingMessage.textContent = "A carregar dados da frota...";
+    loadingMessage.style.display = 'block';
+    listaScootersDiv.innerHTML = ''; // Limpa a lista anterior
+
+    try {
+        // GET para o endpoint definido na Questão 3
+        const response = await fetch(`${API_BASE_URL}/api/scooters/disponiveis`);
+        
+        if (!response.ok) {
+            throw new Error(`Erro HTTP! Status: ${response.status}`);
+        }
+        
+        // O que a requisição faz: Recebe o array JSON de scooters disponíveis
+        const scooters = await response.json(); 
+
+        // 3. O que acontece com o State: O estado implícito (a variável 'scooters') é preenchido.
+        renderizarScooters(scooters);
+
+    } catch (error) {
+        console.error("Erro ao carregar scooters:", error);
+        listaScootersDiv.innerHTML = `<p class="status-indisponivel">❌ Erro ao conectar com o Backend: ${error.message}</p>`;
+        loadingMessage.style.display = 'none';
+    }
+}
+
+/**
+ * Função responsável por criar e exibir os cartões de scooter.
+ */
+function renderizarScooters(scooters) {
+    loadingMessage.style.display = 'none';
+
+    if (scooters.length === 0) {
+        listaScootersDiv.innerHTML = '<p>Nenhuma scooter disponível neste momento.</p>';
+        return;
+    }
+
+    scooters.forEach(scooter => {
+        const card = document.createElement('div');
+        card.className = 'scooter-card';
+
+        // Estilo condicional para bateria baixa (Critério de Aceitação da Questão 1)
+        const bateriaClass = scooter.nivel_bateria < 30 ? 'bateria-baixa' : '';
+        const statusClass = `status-${scooter.status.replace(/ /g, '_')}`;
+
+        card.innerHTML = `
+            <h3>Scooter ${scooter.modelo}</h3>
+            <p><strong>ID:</strong> ${scooter.id.substring(0, 8)}...</p>
+            <p><strong>Localização:</strong> ${scooter.localizacao}</p>
+            <p><strong>Bateria:</strong> <span class="${bateriaClass}">${scooter.nivel_bateria}%</span></p>
+            <p><strong>Status:</strong> <span class="${statusClass}">${scooter.status.toUpperCase()}</span></p>
+            <button class="alugar-button" data-id="${scooter.id}">Alugar Agora</button>
+        `;
+        listaScootersDiv.appendChild(card);
+    });
+
+    // Adiciona listener de evento para os botões de Alugar
+    document.querySelectorAll('.alugar-button').forEach(button => {
+        button.addEventListener('click', handleAluguel);
+    });
+}
+
+/**
+ * Lida com a ação de alugar uma scooter (Questão 4 - Lógica)
+ */
+async function handleAluguel(event) {
+    const scooterId = event.target.getAttribute('data-id');
+    const user = 1; // ID de usuário simulado
+    const button = event.target;
+    button.disabled = true;
+    button.textContent = "Processando...";
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/alugar`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ scooter_id: scooterId, utilizador_id: user })
+        });
+
+        const resultado = await response.json();
+
+        if (response.ok) {
+            alert(`✅ Sucesso! ${resultado.mensagem}`);
+            // Recarrega a lista para refletir a mudança de status
+            carregarScooters(); 
+        } else {
+            // Regra de Ouro da Questão 4 (Status 400)
+            alert(`❌ Erro no Aluguel: ${resultado.erro}`);
+            button.disabled = false;
+            button.textContent = "Alugar Agora";
+        }
+    } catch (error) {
+        alert("Falha de comunicação com o servidor.");
+        console.error("Erro no aluguel:", error);
+        button.disabled = false;
+        button.textContent = "Alugar Agora";
+    }
+}
+
+// Inicia o carregamento das scooters assim que o script é executado (Questão 5 - Montagem)
+document.addEventListener('DOMContentLoaded', carregarScooters);
