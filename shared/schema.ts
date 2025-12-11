@@ -59,6 +59,38 @@ export type Scooter = typeof scooters.$inferSelect;
 export type InsertViagem = z.infer<typeof insertViagemSchema>;
 export type Viagem = typeof viagens.$inferSelect;
 
+export const maintenancePriorityEnum = pgEnum("maintenance_priority", ["baixa", "media", "alta", "urgente"]);
+export const maintenanceStatusEnum = pgEnum("maintenance_status", ["pendente", "em_andamento", "concluida", "cancelada"]);
+
+export const manutencoes = pgTable("manutencoes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scooterId: varchar("scooter_id").notNull().references(() => scooters.id),
+  tecnicoNome: text("tecnico_nome").notNull(),
+  descricao: text("descricao").notNull(),
+  prioridade: maintenancePriorityEnum("prioridade").notNull().default("media"),
+  status: maintenanceStatusEnum("status").notNull().default("pendente"),
+  dataAgendada: timestamp("data_agendada").notNull(),
+  dataConclusao: timestamp("data_conclusao"),
+  observacoes: text("observacoes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const manutencoesRelations = relations(manutencoes, ({ one }) => ({
+  scooter: one(scooters, {
+    fields: [manutencoes.scooterId],
+    references: [scooters.id],
+  }),
+}));
+
+export const insertManutencaoSchema = createInsertSchema(manutencoes).omit({
+  id: true,
+  dataConclusao: true,
+  createdAt: true,
+});
+
+export type InsertManutencao = z.infer<typeof insertManutencaoSchema>;
+export type Manutencao = typeof manutencoes.$inferSelect;
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),

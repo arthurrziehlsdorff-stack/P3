@@ -17,6 +17,7 @@
                 <button class="nav-btn active" data-page="dashboard" data-testid="nav-dashboard">Dashboard</button>
                 <button class="nav-btn" data-page="scooters" data-testid="nav-scooters">Scooters</button>
                 <button class="nav-btn" data-page="viagens" data-testid="nav-viagens">Viagens</button>
+                <button class="nav-btn" data-page="manutencao" data-testid="nav-manutencao">Manutencao</button>
             </nav>
         </div>
     </header>
@@ -119,6 +120,48 @@
                 </table>
             </div>
         </section>
+
+        <section id="manutencao-page" class="page">
+            <div class="section-header">
+                <h2>Agendamento de Manutencao</h2>
+                <button class="btn btn-primary" onclick="openMaintenanceModal()" data-testid="button-add-maintenance">Nova Manutencao</button>
+            </div>
+            
+            <div class="filters">
+                <select id="maintenance-status-filter" onchange="filterMaintenance()" data-testid="select-filter-maintenance-status">
+                    <option value="">Todos os Status</option>
+                    <option value="pendente">Pendente</option>
+                    <option value="em_andamento">Em Andamento</option>
+                    <option value="concluida">Concluida</option>
+                    <option value="cancelada">Cancelada</option>
+                </select>
+                <select id="maintenance-priority-filter" onchange="filterMaintenance()" data-testid="select-filter-maintenance-priority">
+                    <option value="">Todas as Prioridades</option>
+                    <option value="baixa">Baixa</option>
+                    <option value="media">Media</option>
+                    <option value="alta">Alta</option>
+                    <option value="urgente">Urgente</option>
+                </select>
+            </div>
+            
+            <div id="manutencao-list" class="scooters-table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Scooter</th>
+                            <th>Tecnico</th>
+                            <th>Descricao</th>
+                            <th>Prioridade</th>
+                            <th>Status</th>
+                            <th>Data Agendada</th>
+                            <th>Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="manutencao-table-body"></tbody>
+                </table>
+            </div>
+        </section>
     </main>
 
     <div id="scooter-modal" class="modal">
@@ -216,6 +259,67 @@
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeBatteryModal()">Cancelar</button>
                     <button type="submit" class="btn btn-primary" data-testid="button-submit-battery">Atualizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="maintenance-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="maintenance-modal-title">Nova Manutencao</h3>
+                <button class="close-btn" onclick="closeMaintenanceModal()">&times;</button>
+            </div>
+            <form id="maintenance-form" onsubmit="saveMaintenance(event)">
+                <input type="hidden" id="maintenance-id">
+                <div class="form-group">
+                    <label for="maintenance-scooter">Scooter</label>
+                    <select id="maintenance-scooter" required data-testid="select-maintenance-scooter"></select>
+                </div>
+                <div class="form-group">
+                    <label for="maintenance-tecnico">Nome do Tecnico</label>
+                    <input type="text" id="maintenance-tecnico" required data-testid="input-maintenance-tecnico">
+                </div>
+                <div class="form-group">
+                    <label for="maintenance-descricao">Descricao do Servico</label>
+                    <textarea id="maintenance-descricao" rows="3" required data-testid="input-maintenance-descricao"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="maintenance-prioridade">Prioridade</label>
+                    <select id="maintenance-prioridade" required data-testid="select-maintenance-prioridade">
+                        <option value="baixa">Baixa</option>
+                        <option value="media" selected>Media</option>
+                        <option value="alta">Alta</option>
+                        <option value="urgente">Urgente</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="maintenance-data">Data Agendada</label>
+                    <input type="datetime-local" id="maintenance-data" required data-testid="input-maintenance-data">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeMaintenanceModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" data-testid="button-submit-maintenance">Agendar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="complete-maintenance-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Concluir Manutencao</h3>
+                <button class="close-btn" onclick="closeCompleteMaintenanceModal()">&times;</button>
+            </div>
+            <form id="complete-maintenance-form" onsubmit="completeMaintenance(event)">
+                <input type="hidden" id="complete-maintenance-id">
+                <div class="form-group">
+                    <label for="maintenance-observacoes">Observacoes (opcional)</label>
+                    <textarea id="maintenance-observacoes" rows="3" data-testid="input-maintenance-observacoes"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCompleteMaintenanceModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" data-testid="button-submit-complete-maintenance">Concluir</button>
                 </div>
             </form>
         </div>
