@@ -1,26 +1,43 @@
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO
 from datetime import datetime
 from decimal import Decimal
 import os
 import uuid
 
-from models import Scooter, Viagem, SessionLocal, init_db
-
-app = Flask(__name__, static_folder='../client/dist', static_url_path='')
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from models import Base, Scooter, Viagem
+    
+    engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+else:
+    engine = None
+    SessionLocal = None
+
 def get_db():
+    if SessionLocal is None:
+        raise Exception("Database not configured")
     return SessionLocal()
 
 def broadcast_event(event_type, data):
-    socketio.emit(event_type, {
+    socketio.emit('update', {
         "type": event_type,
         "payload": data,
         "timestamp": datetime.utcnow().isoformat()
     })
+
+@app.route('/')
+def serve_index():
+    return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/api/scooters', methods=['GET'])
 def get_scooters():
@@ -49,7 +66,7 @@ def get_scooter(scooter_id):
     try:
         scooter = db.query(Scooter).filter(Scooter.id == scooter_id).first()
         if not scooter:
-            return jsonify({"message": "Scooter não encontrada"}), 404
+            return jsonify({"message": "Scooter nao encontrada"}), 404
         return jsonify(scooter.to_dict()), 200
     finally:
         db.close()
@@ -84,7 +101,7 @@ def update_scooter(scooter_id):
     try:
         scooter = db.query(Scooter).filter(Scooter.id == scooter_id).first()
         if not scooter:
-            return jsonify({"message": "Scooter não encontrada"}), 404
+            return jsonify({"message": "Scooter nao encontrada"}), 404
         
         data = request.get_json()
         if 'modelo' in data:
@@ -114,13 +131,13 @@ def update_battery(scooter_id):
     try:
         scooter = db.query(Scooter).filter(Scooter.id == scooter_id).first()
         if not scooter:
-            return jsonify({"message": "Scooter não encontrada"}), 404
+            return jsonify({"message": "Scooter nao encontrada"}), 404
         
         data = request.get_json()
         bateria = data.get('bateria')
         
         if bateria is None or not isinstance(bateria, int) or not (0 <= bateria <= 100):
-            return jsonify({"message": "Nível de bateria inválido (0-100)"}), 400
+            return jsonify({"message": "Nivel de bateria invalido (0-100)"}), 400
         
         scooter.bateria = bateria
         scooter.ultima_atualizacao = datetime.utcnow()
@@ -144,17 +161,17 @@ def alugar_scooter():
         usuario_nome = data.get('usuarioNome')
         
         if not scooter_id or not usuario_nome:
-            return jsonify({"message": "Dados inválidos"}), 400
+            return jsonify({"message": "Dados invalidos"}), 400
         
         scooter = db.query(Scooter).filter(Scooter.id == scooter_id).first()
         if not scooter:
-            return jsonify({"message": "Scooter não encontrada no banco de dados"}), 400
+            return jsonify({"message": "Scooter nao encontrada no banco de dados"}), 400
         
         if scooter.status != 'livre':
-            return jsonify({"message": "Scooter não está disponível para aluguel"}), 400
+            return jsonify({"message": "Scooter nao esta disponivel para aluguel"}), 400
         
         if scooter.bateria <= 20:
-            return jsonify({"message": "Scooter com bateria insuficiente (mínimo 20%)"}), 400
+            return jsonify({"message": "Scooter com bateria insuficiente (minimo 20%)"}), 400
         
         viagem = Viagem(
             id=str(uuid.uuid4()),
@@ -207,10 +224,10 @@ def finalizar_viagem(viagem_id):
     try:
         viagem = db.query(Viagem).filter(Viagem.id == viagem_id).first()
         if not viagem:
-            return jsonify({"message": "Viagem não encontrada"}), 404
+            return jsonify({"message": "Viagem nao encontrada"}), 404
         
         if viagem.data_fim:
-            return jsonify({"message": "Viagem já foi finalizada"}), 400
+            return jsonify({"message": "Viagem ja foi finalizada"}), 400
         
         data = request.get_json()
         distancia = data.get('distanciaKm', '0.00')
@@ -241,16 +258,6 @@ def finalizar_viagem(viagem_id):
     finally:
         db.close()
 
-@app.route('/')
-def serve_index():
-    return send_from_directory(app.static_folder, 'index.html')
-
-@app.route('/<path:path>')
-def serve_static(path):
-    if os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, 'index.html')
-
 @socketio.on('connect')
 def handle_connect():
     print('WebSocket client connected')
@@ -260,6 +267,5 @@ def handle_disconnect():
     print('WebSocket client disconnected')
 
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port, debug=True)
