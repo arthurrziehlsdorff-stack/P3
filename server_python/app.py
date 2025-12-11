@@ -127,6 +127,40 @@ def update_scooter(scooter_id):
     finally:
         db.close()
 
+@app.route('/api/scooters/<scooter_id>', methods=['DELETE'])
+def delete_scooter(scooter_id):
+    db = get_db()
+    try:
+        scooter = db.query(Scooter).filter(Scooter.id == scooter_id).first()
+        if not scooter:
+            return jsonify({"message": "Scooter nao encontrada"}), 404
+        
+        active_viagem = db.query(Viagem).filter(
+            Viagem.scooter_id == scooter_id,
+            Viagem.data_fim == None
+        ).first()
+        if active_viagem:
+            return jsonify({"message": "Scooter possui viagem ativa e nao pode ser removida"}), 400
+        
+        active_manutencao = db.query(Manutencao).filter(
+            Manutencao.scooter_id == scooter_id,
+            Manutencao.status.in_(['pendente', 'em_andamento'])
+        ).first()
+        if active_manutencao:
+            return jsonify({"message": "Scooter possui manutencao pendente e nao pode ser removida"}), 400
+        
+        db.delete(scooter)
+        db.commit()
+        
+        broadcast_event('scooter:deleted', {"id": scooter_id})
+        
+        return jsonify({"message": "Scooter removida com sucesso"}), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"message": "Erro ao remover scooter", "error": str(e)}), 500
+    finally:
+        db.close()
+
 @app.route('/api/scooters/<scooter_id>/bateria', methods=['PATCH'])
 def update_battery(scooter_id):
     db = get_db()
@@ -347,6 +381,32 @@ def update_manutencao(manutencao_id):
     finally:
         db.close()
 
+@app.route('/api/manutencoes/<manutencao_id>/iniciar', methods=['PATCH'])
+def iniciar_manutencao(manutencao_id):
+    db = get_db()
+    try:
+        manutencao = db.query(Manutencao).filter(Manutencao.id == manutencao_id).first()
+        if not manutencao:
+            return jsonify({"message": "Manutencao nao encontrada"}), 404
+        
+        if manutencao.status != 'pendente':
+            return jsonify({"message": "Manutencao nao pode ser iniciada"}), 400
+        
+        manutencao.status = 'em_andamento'
+        
+        db.commit()
+        db.refresh(manutencao)
+        
+        result = manutencao.to_dict()
+        broadcast_event('maintenance:updated', result)
+        
+        return jsonify(result), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"message": "Erro ao iniciar manutencao", "error": str(e)}), 500
+    finally:
+        db.close()
+
 @app.route('/api/manutencoes/<manutencao_id>/concluir', methods=['PATCH'])
 def concluir_manutencao(manutencao_id):
     db = get_db()
@@ -417,9 +477,47 @@ def delete_manutencao(manutencao_id):
     finally:
         db.close()
 
-@app.route('/')
-def serve_index():
-    return send_from_directory('../public', 'index.html')
+@app.route('/api/manutencoes/<manutencao_id>/cancelar', methods=['PATCH'])
+def cancelar_manutencao(manutencao_id):
+    db = get_db()
+    try:
+        manutencao = db.query(Manutencao).filter(Manutencao.id == manutencao_id).first()
+        if not manutencao:
+            return jsonify({"message": "Manutencao nao encontrada"}), 404
+        
+        if manutencao.status in ['concluida', 'cancelada']:
+            return jsonify({"message": "Manutencao nao pode ser cancelada"}), 400
+        
+        manutencao.status = 'cancelada'
+        
+        scooter = db.query(Scooter).filter(Scooter.id == manutencao.scooter_id).first()
+        scooter_updated = False
+        if scooter and scooter.status == 'manutencao':
+            pending = db.query(Manutencao).filter(
+                Manutencao.scooter_id == scooter.id,
+                Manutencao.id != manutencao_id,
+                Manutencao.status.in_(['pendente', 'em_andamento'])
+            ).first()
+            if not pending:
+                scooter.status = 'livre'
+                scooter.ultima_atualizacao = datetime.utcnow()
+                scooter_updated = True
+        
+        db.commit()
+        db.refresh(manutencao)
+        
+        result = manutencao.to_dict()
+        broadcast_event('maintenance:cancelled', result)
+        if scooter_updated and scooter:
+            db.refresh(scooter)
+            broadcast_event('scooter:updated', scooter.to_dict())
+        
+        return jsonify(result), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"message": "Erro ao cancelar manutencao", "error": str(e)}), 500
+    finally:
+        db.close()
 
 @app.route('/html')
 def serve_html_frontend():
