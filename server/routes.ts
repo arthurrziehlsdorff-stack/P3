@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { insertScooterSchema, updateBateriaSchema, alugarSchema } from "@shared/schema";
 import { z } from "zod";
 import { broadcast } from "./websocket";
+import express from "express";
+import path from "path";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -203,6 +205,13 @@ export async function registerRoutes(
     } catch (error) {
       res.status(500).json({ message: "Erro ao finalizar viagem" });
     }
+  });
+
+  // Serve plain HTML version at /html
+  const publicPath = path.resolve(process.cwd(), "public");
+  app.use("/static", express.static(publicPath));
+  app.get("/html", (req, res) => {
+    res.sendFile(path.join(publicPath, "index.html"));
   });
 
   return httpServer;

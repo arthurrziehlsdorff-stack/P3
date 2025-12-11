@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoRide - Painel de Controle da Frota</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>EcoRide - Painel de Controle</h1>
+            <nav>
+                <button class="nav-btn active" data-page="dashboard" data-testid="nav-dashboard">Dashboard</button>
+                <button class="nav-btn" data-page="scooters" data-testid="nav-scooters">Scooters</button>
+                <button class="nav-btn" data-page="viagens" data-testid="nav-viagens">Viagens</button>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section id="dashboard-page" class="page active">
+            <h2>Dashboard</h2>
+            <div class="metrics-grid">
+                <div class="metric-card" data-testid="metric-total">
+                    <span class="metric-label">Total de Scooters</span>
+                    <span class="metric-value" id="total-scooters">0</span>
+                </div>
+                <div class="metric-card" data-testid="metric-available">
+                    <span class="metric-label">Disponiveis</span>
+                    <span class="metric-value green" id="available-scooters">0</span>
+                </div>
+                <div class="metric-card" data-testid="metric-in-use">
+                    <span class="metric-label">Em Uso</span>
+                    <span class="metric-value blue" id="in-use-scooters">0</span>
+                </div>
+                <div class="metric-card" data-testid="metric-maintenance">
+                    <span class="metric-label">Manutencao</span>
+                    <span class="metric-value orange" id="maintenance-scooters">0</span>
+                </div>
+                <div class="metric-card" data-testid="metric-low-battery">
+                    <span class="metric-label">Bateria Baixa</span>
+                    <span class="metric-value red" id="low-battery-scooters">0</span>
+                </div>
+                <div class="metric-card" data-testid="metric-active-trips">
+                    <span class="metric-label">Viagens Ativas</span>
+                    <span class="metric-value purple" id="active-trips">0</span>
+                </div>
+            </div>
+            
+            <div class="section-header">
+                <h3>Scooters Disponiveis para Aluguel</h3>
+                <button class="btn btn-primary" onclick="openRentModal()" data-testid="button-open-rent">Alugar Scooter</button>
+            </div>
+            <div id="available-scooters-list" class="scooters-grid"></div>
+        </section>
+
+        <section id="scooters-page" class="page">
+            <div class="section-header">
+                <h2>Gerenciamento de Scooters</h2>
+                <button class="btn btn-primary" onclick="openScooterModal()" data-testid="button-add-scooter">Nova Scooter</button>
+            </div>
+            
+            <div class="filters">
+                <select id="status-filter" onchange="filterScooters()" data-testid="select-filter-status">
+                    <option value="">Todos os Status</option>
+                    <option value="livre">Livre</option>
+                    <option value="ocupado">Ocupado</option>
+                    <option value="manutencao">Manutencao</option>
+                </select>
+                <input type="text" id="search-filter" placeholder="Buscar por modelo ou localizacao..." oninput="filterScooters()" data-testid="input-search">
+            </div>
+            
+            <div id="scooters-list" class="scooters-table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Modelo</th>
+                            <th>Status</th>
+                            <th>Bateria</th>
+                            <th>Localizacao</th>
+                            <th>Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scooters-table-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="viagens-page" class="page">
+            <h2>Viagens</h2>
+            
+            <div class="filters">
+                <select id="trip-status-filter" onchange="filterTrips()" data-testid="select-filter-trip-status">
+                    <option value="">Todas as Viagens</option>
+                    <option value="ativa">Ativas</option>
+                    <option value="finalizada">Finalizadas</option>
+                </select>
+            </div>
+            
+            <div id="viagens-list" class="scooters-table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Usuario</th>
+                            <th>Scooter</th>
+                            <th>Inicio</th>
+                            <th>Fim</th>
+                            <th>Distancia</th>
+                            <th>Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="viagens-table-body"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <div id="scooter-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="scooter-modal-title">Nova Scooter</h3>
+                <button class="close-btn" onclick="closeScooterModal()">&times;</button>
+            </div>
+            <form id="scooter-form" onsubmit="saveScooter(event)">
+                <input type="hidden" id="scooter-id">
+                <div class="form-group">
+                    <label for="scooter-modelo">Modelo</label>
+                    <input type="text" id="scooter-modelo" required data-testid="input-scooter-modelo">
+                </div>
+                <div class="form-group">
+                    <label for="scooter-localizacao">Localizacao</label>
+                    <input type="text" id="scooter-localizacao" required data-testid="input-scooter-localizacao">
+                </div>
+                <div class="form-group">
+                    <label for="scooter-bateria">Bateria (%)</label>
+                    <input type="number" id="scooter-bateria" min="0" max="100" value="100" required data-testid="input-scooter-bateria">
+                </div>
+                <div class="form-group">
+                    <label for="scooter-status">Status</label>
+                    <select id="scooter-status" required data-testid="select-scooter-status">
+                        <option value="livre">Livre</option>
+                        <option value="ocupado">Ocupado</option>
+                        <option value="manutencao">Manutencao</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeScooterModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" data-testid="button-submit-scooter">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="rent-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Alugar Scooter</h3>
+                <button class="close-btn" onclick="closeRentModal()">&times;</button>
+            </div>
+            <form id="rent-form" onsubmit="rentScooter(event)">
+                <div class="form-group">
+                    <label for="rent-scooter">Scooter</label>
+                    <select id="rent-scooter" required data-testid="select-rent-scooter"></select>
+                </div>
+                <div class="form-group">
+                    <label for="rent-usuario">Nome do Usuario</label>
+                    <input type="text" id="rent-usuario" required data-testid="input-rent-usuario">
+                </div>
+                <div id="rent-error" class="error-message"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeRentModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" data-testid="button-submit-rent">Iniciar Aluguel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="finalize-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Finalizar Viagem</h3>
+                <button class="close-btn" onclick="closeFinalizeModal()">&times;</button>
+            </div>
+            <form id="finalize-form" onsubmit="finalizeTrip(event)">
+                <input type="hidden" id="finalize-trip-id">
+                <div class="form-group">
+                    <label for="finalize-distancia">Distancia (km)</label>
+                    <input type="number" id="finalize-distancia" step="0.01" min="0" value="0" required data-testid="input-finalize-distancia">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeFinalizeModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" data-testid="button-submit-finalize">Finalizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="battery-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Atualizar Bateria</h3>
+                <button class="close-btn" onclick="closeBatteryModal()">&times;</button>
+            </div>
+            <form id="battery-form" onsubmit="updateBattery(event)">
+                <input type="hidden" id="battery-scooter-id">
+                <div class="form-group">
+                    <label for="battery-level">Nivel de Bateria (%)</label>
+                    <input type="number" id="battery-level" min="0" max="100" required data-testid="input-battery-level">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeBatteryModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" data-testid="button-submit-battery">Atualizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer>
+        <p>2025 EcoRide Mobilidade Urbana Inteligente</p>
+    </footer>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
