@@ -1,7 +1,63 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, decimal, pgEnum } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+export const scooterStatusEnum = pgEnum("scooter_status", ["livre", "ocupado", "manutencao"]);
+
+export const scooters = pgTable("scooters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  modelo: text("modelo").notNull(),
+  bateria: integer("bateria").notNull().default(100),
+  status: scooterStatusEnum("status").notNull().default("livre"),
+  localizacao: text("localizacao").notNull(),
+  ultimaAtualizacao: timestamp("ultima_atualizacao").notNull().defaultNow(),
+});
+
+export const viagens = pgTable("viagens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scooterId: varchar("scooter_id").notNull().references(() => scooters.id),
+  usuarioNome: text("usuario_nome").notNull(),
+  dataInicio: timestamp("data_inicio").notNull().defaultNow(),
+  dataFim: timestamp("data_fim"),
+  distanciaKm: decimal("distancia_km", { precision: 10, scale: 2 }),
+});
+
+export const scootersRelations = relations(scooters, ({ many }) => ({
+  viagens: many(viagens),
+}));
+
+export const viagensRelations = relations(viagens, ({ one }) => ({
+  scooter: one(scooters, {
+    fields: [viagens.scooterId],
+    references: [scooters.id],
+  }),
+}));
+
+export const insertScooterSchema = createInsertSchema(scooters).omit({
+  id: true,
+  ultimaAtualizacao: true,
+});
+
+export const insertViagemSchema = createInsertSchema(viagens).omit({
+  id: true,
+  dataInicio: true,
+});
+
+export const updateBateriaSchema = z.object({
+  bateria: z.number().min(0).max(100),
+});
+
+export const alugarSchema = z.object({
+  scooterId: z.string().uuid(),
+  usuarioNome: z.string().min(1),
+});
+
+export type InsertScooter = z.infer<typeof insertScooterSchema>;
+export type Scooter = typeof scooters.$inferSelect;
+export type InsertViagem = z.infer<typeof insertViagemSchema>;
+export type Viagem = typeof viagens.$inferSelect;
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
