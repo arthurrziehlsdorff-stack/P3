@@ -3,10 +3,11 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 from datetime import datetime
 from decimal import Decimal
+from dateutil import parser as date_parser
 import os
 import uuid
 
-app = Flask(__name__, static_folder='static', static_url_path='/static')
+app = Flask(__name__, static_folder='../public', static_url_path='/static')
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
@@ -15,10 +16,11 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL:
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
-    from models import Base, Scooter, Viagem
+    from models import Base, Scooter, Viagem, Manutencao
     
     engine = create_engine(DATABASE_URL)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
 else:
     engine = None
     SessionLocal = None
@@ -257,6 +259,175 @@ def finalizar_viagem(viagem_id):
         return jsonify({"message": "Erro ao finalizar viagem", "error": str(e)}), 500
     finally:
         db.close()
+
+@app.route('/api/manutencoes', methods=['GET'])
+def get_manutencoes():
+    db = get_db()
+    try:
+        manutencoes = db.query(Manutencao).order_by(Manutencao.data_agendada.desc()).all()
+        return jsonify([m.to_dict() for m in manutencoes]), 200
+    finally:
+        db.close()
+
+@app.route('/api/manutencoes', methods=['POST'])
+def create_manutencao():
+    db = get_db()
+    try:
+        data = request.get_json()
+        
+        scooter_id = data.get('scooterId')
+        scooter = db.query(Scooter).filter(Scooter.id == scooter_id).first()
+        if not scooter:
+            return jsonify({"message": "Scooter nao encontrada"}), 400
+        
+        data_agendada = date_parser.parse(data.get('dataAgendada'))
+        
+        manutencao = Manutencao(
+            id=str(uuid.uuid4()),
+            scooter_id=scooter_id,
+            tecnico_nome=data.get('tecnicoNome'),
+            descricao=data.get('descricao'),
+            prioridade=data.get('prioridade', 'media'),
+            status='pendente',
+            data_agendada=data_agendada,
+            observacoes=data.get('observacoes')
+        )
+        db.add(manutencao)
+        
+        scooter.status = 'manutencao'
+        scooter.ultima_atualizacao = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(manutencao)
+        
+        result = manutencao.to_dict()
+        broadcast_event('maintenance:created', result)
+        broadcast_event('scooter:updated', scooter.to_dict())
+        
+        return jsonify(result), 201
+    except Exception as e:
+        db.rollback()
+        return jsonify({"message": "Erro ao criar manutencao", "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/api/manutencoes/<manutencao_id>', methods=['PATCH'])
+def update_manutencao(manutencao_id):
+    db = get_db()
+    try:
+        manutencao = db.query(Manutencao).filter(Manutencao.id == manutencao_id).first()
+        if not manutencao:
+            return jsonify({"message": "Manutencao nao encontrada"}), 404
+        
+        data = request.get_json()
+        
+        if 'tecnicoNome' in data:
+            manutencao.tecnico_nome = data['tecnicoNome']
+        if 'descricao' in data:
+            manutencao.descricao = data['descricao']
+        if 'prioridade' in data:
+            manutencao.prioridade = data['prioridade']
+        if 'status' in data:
+            manutencao.status = data['status']
+        if 'dataAgendada' in data:
+            manutencao.data_agendada = date_parser.parse(data['dataAgendada'])
+        if 'observacoes' in data:
+            manutencao.observacoes = data['observacoes']
+        
+        db.commit()
+        db.refresh(manutencao)
+        
+        result = manutencao.to_dict()
+        broadcast_event('maintenance:updated', result)
+        
+        return jsonify(result), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"message": "Erro ao atualizar manutencao", "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/api/manutencoes/<manutencao_id>/concluir', methods=['PATCH'])
+def concluir_manutencao(manutencao_id):
+    db = get_db()
+    try:
+        manutencao = db.query(Manutencao).filter(Manutencao.id == manutencao_id).first()
+        if not manutencao:
+            return jsonify({"message": "Manutencao nao encontrada"}), 404
+        
+        data = request.get_json()
+        
+        manutencao.status = 'concluida'
+        manutencao.data_conclusao = datetime.utcnow()
+        if 'observacoes' in data:
+            manutencao.observacoes = data['observacoes']
+        
+        scooter = db.query(Scooter).filter(Scooter.id == manutencao.scooter_id).first()
+        if scooter:
+            scooter.status = 'livre'
+            scooter.ultima_atualizacao = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(manutencao)
+        
+        result = manutencao.to_dict()
+        broadcast_event('maintenance:completed', result)
+        if scooter:
+            broadcast_event('scooter:updated', scooter.to_dict())
+        
+        return jsonify(result), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"message": "Erro ao concluir manutencao", "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/api/manutencoes/<manutencao_id>', methods=['DELETE'])
+def delete_manutencao(manutencao_id):
+    db = get_db()
+    try:
+        manutencao = db.query(Manutencao).filter(Manutencao.id == manutencao_id).first()
+        if not manutencao:
+            return jsonify({"message": "Manutencao nao encontrada"}), 404
+        
+        scooter = db.query(Scooter).filter(Scooter.id == manutencao.scooter_id).first()
+        
+        db.delete(manutencao)
+        
+        if scooter and scooter.status == 'manutencao':
+            pending = db.query(Manutencao).filter(
+                Manutencao.scooter_id == scooter.id,
+                Manutencao.id != manutencao_id,
+                Manutencao.status.in_(['pendente', 'em_andamento'])
+            ).first()
+            if not pending:
+                scooter.status = 'livre'
+                scooter.ultima_atualizacao = datetime.utcnow()
+        
+        db.commit()
+        
+        broadcast_event('maintenance:deleted', {"id": manutencao_id})
+        if scooter:
+            broadcast_event('scooter:updated', scooter.to_dict())
+        
+        return jsonify({"message": "Manutencao removida com sucesso"}), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({"message": "Erro ao remover manutencao", "error": str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/html')
+def serve_html_frontend():
+    return send_from_directory('../public', 'index.html')
+
+@app.route('/style.css')
+def serve_css():
+    return send_from_directory('../public', 'style.css')
+
+@app.route('/script.js')
+def serve_js():
+    return send_from_directory('../public', 'script.js')
 
 @socketio.on('connect')
 def handle_connect():
